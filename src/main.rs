@@ -1,9 +1,12 @@
+use crate::adaptors::OwnedDrawTargetExt;
+use adaptors::{DrawTargetExt2, Flushable};
 use core::convert::TryInto;
 use embedded_graphics::{
-    pixelcolor::{Gray8, GrayColor},
+    pixelcolor::{BinaryColor, Gray8, GrayColor},
     prelude::*,
     primitives::{Circle, PrimitiveStyle},
 };
+use std::fmt::Debug;
 use std::{convert::Infallible, error};
 
 pub mod adaptors;
@@ -83,6 +86,22 @@ impl SpiWrite for DummySpi {
     fn send_bytes(&self, buffer: &[u8]) {}
 }
 
+impl<SPI1> Flushable for ExampleDisplay<SPI1> {
+    fn flush(&mut self) -> std::result::Result<(), Self::Error> {
+        Ok(()) // do we really care about this?
+    }
+}
+
+pub fn get_display<D>(
+    display: D,
+) -> Result<impl Flushable<Color = Gray8, Error = impl Debug + 'static> + 'static>
+where
+    D: adaptors::Flushable + embedded_graphics::draw_target::DrawTarget<Color = Gray8> + 'static,
+    <D as embedded_graphics::draw_target::DrawTarget>::Error: Debug,
+{
+    Ok(display)
+}
+
 fn main() -> Result<()> {
     let spi1 = DummySpi::new();
     let mut display = ExampleDisplay {
@@ -96,8 +115,16 @@ fn main() -> Result<()> {
 
     circle.draw(&mut display)?;
 
-    // Update the display
+    // Calling `flush` here calls this directly on our instance of
+    // `ExampleDisplay`.
     display.flush().unwrap();
+
+    // However, due to the type-erasure, does this end up making
+    // the same call to `flush` on the display instance?
+    //
+    // This now has type `impl Flushable<Color = Gray8, Error = impl Debug>`.
+    let type_erased = get_display(display)?;
+    type_erased.owned_noop_flushing();
 
     Ok(())
 }
