@@ -7,3 +7,5 @@ edition = "2021"
 
 [dependencies]
 embedded-graphics = "0.7"
+embedded-hal = { git = "https://github.com/rust-embedded/embedded-hal" }
+embedded-hal-0-2 = { package = "embedded-hal", version = "0.2.7", features = ["unproven"] }

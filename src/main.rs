@@ -1,17 +1,17 @@
 #![forbid(unused_imports)]
 
-use crate::adaptors::OwnedDrawTargetExt;
-use adaptors::Flushable;
+use crate::graphics::OwnedDrawTargetExt;
 use core::convert::TryInto;
 use embedded_graphics::{
     pixelcolor::{Gray8, GrayColor},
     prelude::*,
     primitives::{Circle, PrimitiveStyle},
 };
+use graphics::Flushable;
 use std::fmt::Debug;
 use std::{convert::Infallible, error};
 
-pub mod adaptors;
+pub mod graphics;
 
 type Result<T> = std::result::Result<T, Box<dyn error::Error>>;
 
@@ -98,7 +98,7 @@ pub fn get_display<D>(
     display: D,
 ) -> Result<impl Flushable<Color = Gray8, Error = impl Debug + 'static> + 'static>
 where
-    D: adaptors::Flushable + embedded_graphics::draw_target::DrawTarget<Color = Gray8> + 'static,
+    D: graphics::Flushable + embedded_graphics::draw_target::DrawTarget<Color = Gray8> + 'static,
     <D as embedded_graphics::draw_target::DrawTarget>::Error: Debug,
 {
     Ok(display)
