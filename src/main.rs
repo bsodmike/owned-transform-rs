@@ -1,6 +1,5 @@
 // #![forbid(unused_imports)]
 
-use crate::graphics::OwnedDrawTargetExt;
 use core::convert::TryInto;
 use embedded_graphics::{
     pixelcolor::{Gray8, GrayColor},
@@ -9,9 +8,9 @@ use embedded_graphics::{
 };
 
 use embedded_hal::i2c::I2c;
-use graphics::Flushable;
-use serial::UsesI2C;
-use std::{convert::Infallible, error};
+use graphics::{Flushable, OwnedDrawTargetExt};
+use serial::{OwnedTargetExt, UsesI2C};
+use std::{any, convert::Infallible, error};
 use std::{fmt::Debug, marker::PhantomData};
 
 pub mod graphics;
@@ -125,26 +124,36 @@ struct ExampleDevice<I2C> {
 }
 
 impl<I2C> I2c for ExampleDevice<I2C> {
-    fn read(&mut self, address: u8, buffer: &mut [u8]) -> Result<()> {
+    fn read(&mut self, address: u8, buffer: &mut [u8]) -> std::result::Result<(), Self::Error> {
         todo!()
     }
 
-    fn write(&mut self, address: u8, bytes: &[u8]) -> Result<()> {
+    fn write(&mut self, address: u8, bytes: &[u8]) -> std::result::Result<(), Self::Error> {
         todo!()
     }
 
-    fn write_iter<B>(&mut self, address: u8, bytes: B) -> Result<()>
+    fn write_iter<B>(&mut self, address: u8, bytes: B) -> std::result::Result<(), Self::Error>
     where
         B: IntoIterator<Item = u8>,
     {
         todo!()
     }
 
-    fn write_read(&mut self, address: u8, bytes: &[u8], buffer: &mut [u8]) -> Result<()> {
+    fn write_read(
+        &mut self,
+        address: u8,
+        bytes: &[u8],
+        buffer: &mut [u8],
+    ) -> std::result::Result<(), Self::Error> {
         todo!()
     }
 
-    fn write_iter_read<B>(&mut self, address: u8, bytes: B, buffer: &mut [u8]) -> Result<()>
+    fn write_iter_read<B>(
+        &mut self,
+        address: u8,
+        bytes: B,
+        buffer: &mut [u8],
+    ) -> std::result::Result<(), Self::Error>
     where
         B: IntoIterator<Item = u8>,
     {
@@ -155,11 +164,15 @@ impl<I2C> I2c for ExampleDevice<I2C> {
         &mut self,
         address: u8,
         operations: &mut [embedded_hal::i2c::Operation<'a>],
-    ) -> Result<()> {
+    ) -> std::result::Result<(), Self::Error> {
         todo!()
     }
 
-    fn transaction_iter<'a, O>(&mut self, address: u8, operations: O) -> Result<()>
+    fn transaction_iter<'a, O>(
+        &mut self,
+        address: u8,
+        operations: O,
+    ) -> std::result::Result<(), Self::Error>
     where
         O: IntoIterator<Item = embedded_hal::i2c::Operation<'a>>,
     {
@@ -168,29 +181,44 @@ impl<I2C> I2c for ExampleDevice<I2C> {
 }
 
 impl<I2C> UsesI2C for ExampleDevice<I2C> {
-    type AddressMode = embedded_hal::i2c::SevenBitAddress;
+    // type AddressMode = embedded_hal::i2c::SevenBitAddress;
+    type Error = embedded_hal::i2c::ErrorKind;
 
-    fn foo(&mut self) -> Result<()> {
+    fn run_flusher(&mut self) -> std::result::Result<(), <Self as UsesI2C>::Error> {
         todo!()
     }
 }
 
-impl<I2C> embedded_hal::i2c::ErrorType for ExampleDevice<I2C> {}
+impl<I2C> embedded_hal::i2c::ErrorType for ExampleDevice<I2C> {
+    type Error = embedded_hal::i2c::ErrorKind;
+}
 
 pub fn get_device<D>(device: D) -> Result<impl UsesI2C + 'static>
 where
-    D: serial::UsesI2C + 'static,
+    D: UsesI2C + 'static,
 {
     Ok(device)
 }
 
 fn main() -> Result<()> {
-    // I2CWritable
+    env_logger::init();
+
+    log::info!("Starting.");
+
+    // UsesI2C
     let i2c1 = DummyI2c::new();
     let mut device = ExampleDevice { iface: i2c1 };
 
-    let device = get_device(&mut device)?;
-    device.foo();
+    let mut device = get_device(device)?;
+    device
+        .owned_yank(|target| {
+            //
+            log::info!("This is the closure");
+
+            Ok(())
+        })
+        .run_flusher()
+        .unwrap();
 
     // Graphics
     let spi1 = DummySpi::new();
