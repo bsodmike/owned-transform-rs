@@ -5,25 +5,6 @@ use super::I2cCommError;
 use embedded_hal::i2c::{ErrorKind, ErrorType, I2c};
 use embedded_hal_0_2::blocking::i2c::{AddressMode, SevenBitAddress, Write, WriteRead};
 
-struct I2cWritable<I2C> {
-    phantom: PhantomData<I2C>,
-}
-
-// impl<I2C, A> Write<A> for I2cWritable<I2C>
-// where
-//     A: AddressMode,
-// {
-//     type Error = I2cCommError;
-
-//     fn write(&mut self, address: A, bytes: &[u8]) -> std::result::Result<(), Self::Error> {
-//         todo!()
-//     }
-// }
-
-//
-// Owned
-//
-
 pub trait Transformer {
     // type AddressMode: AddressMode;
     type Error;
@@ -55,7 +36,6 @@ impl<T, F> Transformer for I2cT<T, F>
 where
     T: I2c + 'static,
     F: FnMut(&mut T) -> Result<(), T::Error> + Send + Clone + 'static,
-    //for<'a> I2cRunning<'a, T, F>: I2c,
 {
     // type AddressMode = SevenBitAddress;
     type Error = T::Error;
@@ -137,7 +117,7 @@ where
 impl<T> UsesI2C for Owned<T>
 where
     T: Transformer,
-    for<'a> T::I2c<'a>: UsesI2C,
+    for<'a> T::I2c<'a>: UsesI2C, // NOTE this ensures the transformer is able to call the correct method.
 {
     type Error = embedded_hal::i2c::ErrorKind;
 

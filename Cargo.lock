@@ -3,18 +3,6 @@
 version = 3
 
 [[package]]
-name = "adaptors"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "embedded-graphics",
- "embedded-hal 0.2.7",
- "embedded-hal 1.0.0-alpha.9",
- "env_logger",
- "log",
-]
-
-[[package]]
 name = "aho-corasick"
 version = "0.7.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -238,6 +226,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "578ede34cf02f8924ab9447f50c28075b4d3e5b269972345e7e0372b38c6cdcd"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "owned-transform"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "embedded-graphics",
+ "embedded-hal 0.2.7",
+ "embedded-hal 1.0.0-alpha.9",
+ "env_logger",
+ "log",
 ]
 
 [[package]]

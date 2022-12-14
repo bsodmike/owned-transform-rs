@@ -2,6 +2,7 @@
 
 use core::convert::TryInto;
 use embedded_graphics::{
+    draw_target::DrawTarget,
     pixelcolor::{Gray8, GrayColor},
     prelude::*,
     primitives::{Circle, PrimitiveStyle},
@@ -91,18 +92,12 @@ impl SpiWrite for DummySpi {
     fn send_bytes(&self, _buffer: &[u8]) {}
 }
 
-impl<SPI> Flushable for ExampleDisplay<SPI> {
-    fn flush(&mut self) -> std::result::Result<(), Self::Error> {
-        Ok(()) // do we really care about this?
-    }
-}
-
 pub fn get_display<D>(
     display: D,
-) -> Result<impl Flushable<Color = Gray8, Error = impl Debug + 'static> + 'static>
+) -> Result<impl DrawTarget<Color = Gray8, Error = impl Debug + 'static> + 'static>
 where
-    D: graphics::Flushable + embedded_graphics::draw_target::DrawTarget<Color = Gray8> + 'static,
-    <D as embedded_graphics::draw_target::DrawTarget>::Error: Debug,
+    D: DrawTarget<Color = Gray8> + 'static,
+    <D as DrawTarget>::Error: Debug,
 {
     Ok(display)
 }
@@ -180,22 +175,13 @@ impl<I2C> I2c for ExampleDevice<I2C> {
     }
 }
 
-impl<I2C> UsesI2C for ExampleDevice<I2C> {
-    // type AddressMode = embedded_hal::i2c::SevenBitAddress;
-    type Error = embedded_hal::i2c::ErrorKind;
-
-    fn run_flusher(&mut self) -> std::result::Result<(), <Self as UsesI2C>::Error> {
-        todo!()
-    }
-}
-
 impl<I2C> embedded_hal::i2c::ErrorType for ExampleDevice<I2C> {
     type Error = embedded_hal::i2c::ErrorKind;
 }
 
-pub fn get_device<D>(device: D) -> Result<impl UsesI2C + 'static>
+pub fn get_device<D>(device: D) -> Result<impl I2c + 'static>
 where
-    D: UsesI2C + 'static,
+    D: I2c + 'static,
 {
     Ok(device)
 }
@@ -208,17 +194,18 @@ fn main() -> Result<()> {
     // UsesI2C
     let i2c1 = DummyI2c::new();
     let mut device = ExampleDevice { iface: i2c1 };
+    let device = get_device(device)?;
 
-    let mut device = get_device(device)?;
-    device
+    let mut wrapped = device
+        //
         .owned_yank(|target| {
             //
             log::info!("This is the closure");
 
             Ok(())
-        })
-        .run_flusher()
-        .unwrap();
+        });
+
+    wrapped.run_flusher().unwrap();
 
     // Graphics
     let spi1 = DummySpi::new();
