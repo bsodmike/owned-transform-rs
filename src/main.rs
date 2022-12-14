@@ -1,8 +1,10 @@
+#![forbid(unused_imports)]
+
 use crate::adaptors::OwnedDrawTargetExt;
-use adaptors::{DrawTargetExt2, Flushable};
+use adaptors::Flushable;
 use core::convert::TryInto;
 use embedded_graphics::{
-    pixelcolor::{BinaryColor, Gray8, GrayColor},
+    pixelcolor::{Gray8, GrayColor},
     prelude::*,
     primitives::{Circle, PrimitiveStyle},
 };
@@ -18,17 +20,17 @@ type Result<T> = std::result::Result<T, Box<dyn error::Error>>;
 struct CommError;
 
 /// A fake 64px x 64px display.
-struct ExampleDisplay<SPI1> {
+struct ExampleDisplay<SPI> {
     /// The framebuffer with one `u8` value per pixel.
     framebuffer: [u8; 64 * 64],
 
     /// The interface to the display controller.
-    iface: SPI1,
+    iface: SPI,
 }
 
-impl<SPI1> ExampleDisplay<SPI1>
+impl<SPI> ExampleDisplay<SPI>
 where
-    SPI1: SpiWrite,
+    SPI: SpiWrite,
 {
     /// Updates the display from the framebuffer.
     pub fn flush(&self) -> Result<()> {
@@ -38,7 +40,7 @@ where
     }
 }
 
-impl<SPI1> DrawTarget for ExampleDisplay<SPI1> {
+impl<SPI> DrawTarget for ExampleDisplay<SPI> {
     type Color = Gray8;
     // `ExampleDisplay` uses a framebuffer and doesn't need to communicate with the display
     // controller to draw pixel, which means that drawing operations can never fail. To reflect
@@ -64,7 +66,7 @@ impl<SPI1> DrawTarget for ExampleDisplay<SPI1> {
     }
 }
 
-impl<SPI1> OriginDimensions for ExampleDisplay<SPI1> {
+impl<SPI> OriginDimensions for ExampleDisplay<SPI> {
     fn size(&self) -> Size {
         Size::new(64, 64)
     }
@@ -83,10 +85,10 @@ impl DummySpi {
 }
 
 impl SpiWrite for DummySpi {
-    fn send_bytes(&self, buffer: &[u8]) {}
+    fn send_bytes(&self, _buffer: &[u8]) {}
 }
 
-impl<SPI1> Flushable for ExampleDisplay<SPI1> {
+impl<SPI> Flushable for ExampleDisplay<SPI> {
     fn flush(&mut self) -> std::result::Result<(), Self::Error> {
         Ok(()) // do we really care about this?
     }
