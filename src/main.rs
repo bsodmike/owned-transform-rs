@@ -1,4 +1,4 @@
-#![forbid(unused_imports)]
+// #![forbid(unused_imports)]
 
 use crate::graphics::OwnedDrawTargetExt;
 use core::convert::TryInto;
@@ -7,11 +7,15 @@ use embedded_graphics::{
     prelude::*,
     primitives::{Circle, PrimitiveStyle},
 };
+
+use embedded_hal::i2c::I2c;
 use graphics::Flushable;
-use std::fmt::Debug;
+use serial::UsesI2C;
 use std::{convert::Infallible, error};
+use std::{fmt::Debug, marker::PhantomData};
 
 pub mod graphics;
+pub mod serial;
 
 type Result<T> = std::result::Result<T, Box<dyn error::Error>>;
 
@@ -104,7 +108,91 @@ where
     Ok(display)
 }
 
+/// I2C communication error
+#[derive(Debug)]
+struct I2cCommError;
+
+struct DummyI2c {}
+
+impl DummyI2c {
+    fn new() -> Self {
+        Self {}
+    }
+}
+
+struct ExampleDevice<I2C> {
+    iface: I2C,
+}
+
+impl<I2C> I2c for ExampleDevice<I2C> {
+    fn read(&mut self, address: u8, buffer: &mut [u8]) -> Result<()> {
+        todo!()
+    }
+
+    fn write(&mut self, address: u8, bytes: &[u8]) -> Result<()> {
+        todo!()
+    }
+
+    fn write_iter<B>(&mut self, address: u8, bytes: B) -> Result<()>
+    where
+        B: IntoIterator<Item = u8>,
+    {
+        todo!()
+    }
+
+    fn write_read(&mut self, address: u8, bytes: &[u8], buffer: &mut [u8]) -> Result<()> {
+        todo!()
+    }
+
+    fn write_iter_read<B>(&mut self, address: u8, bytes: B, buffer: &mut [u8]) -> Result<()>
+    where
+        B: IntoIterator<Item = u8>,
+    {
+        todo!()
+    }
+
+    fn transaction<'a>(
+        &mut self,
+        address: u8,
+        operations: &mut [embedded_hal::i2c::Operation<'a>],
+    ) -> Result<()> {
+        todo!()
+    }
+
+    fn transaction_iter<'a, O>(&mut self, address: u8, operations: O) -> Result<()>
+    where
+        O: IntoIterator<Item = embedded_hal::i2c::Operation<'a>>,
+    {
+        todo!()
+    }
+}
+
+impl<I2C> UsesI2C for ExampleDevice<I2C> {
+    type AddressMode = embedded_hal::i2c::SevenBitAddress;
+
+    fn foo(&mut self) -> Result<()> {
+        todo!()
+    }
+}
+
+impl<I2C> embedded_hal::i2c::ErrorType for ExampleDevice<I2C> {}
+
+pub fn get_device<D>(device: D) -> Result<impl UsesI2C + 'static>
+where
+    D: serial::UsesI2C + 'static,
+{
+    Ok(device)
+}
+
 fn main() -> Result<()> {
+    // I2CWritable
+    let i2c1 = DummyI2c::new();
+    let mut device = ExampleDevice { iface: i2c1 };
+
+    let device = get_device(&mut device)?;
+    device.foo();
+
+    // Graphics
     let spi1 = DummySpi::new();
     let mut display = ExampleDisplay {
         framebuffer: [0; 4096],
