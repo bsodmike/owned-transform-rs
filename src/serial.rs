@@ -1,19 +1,18 @@
-use anyhow;
-use std::marker::PhantomData;
-
-use super::I2cCommError;
-use embedded_hal::i2c::{ErrorKind, ErrorType, I2c};
+use embedded_hal::i2c::{AddressMode as EHalI2cAddressMode, ErrorKind, ErrorType, I2c};
 use embedded_hal_0_2::blocking::i2c::{AddressMode, SevenBitAddress, Write, WriteRead};
 
 pub trait Transformer {
-    // type AddressMode: AddressMode;
+    type AddressMode: AddressMode;
     type Error;
 
-    type I2c<'a>: I2c<SevenBitAddress>
+    type I2c<'a>: I2c<Self::AddressMode>
     where
-        Self: 'a;
+        Self: 'a,
+        <Self as Transformer>::AddressMode: EHalI2cAddressMode;
 
-    fn transform<'a>(&'a mut self) -> Self::I2c<'a>;
+    fn transform<'a>(&'a mut self) -> Self::I2c<'a>
+    where
+        <Self as Transformer>::AddressMode: EHalI2cAddressMode;
 
     // fn source<'a>(&'a mut self) -> <Self as Transformer>::DrawTarget<'a>
     // where
@@ -37,7 +36,7 @@ where
     T: I2c + 'static,
     F: FnMut(&mut T) -> Result<(), T::Error> + Send + Clone + 'static,
 {
-    // type AddressMode = SevenBitAddress;
+    type AddressMode = SevenBitAddress;
     type Error = T::Error;
 
     type I2c<'a> = I2cRunning<'a, T, F> where Self: 'a;
@@ -117,7 +116,9 @@ where
 impl<T> UsesI2C for Owned<T>
 where
     T: Transformer,
-    for<'a> T::I2c<'a>: UsesI2C, // NOTE this ensures the transformer is able to call the correct method.
+    // NOTE this ensures the transformer is able to call the correct method.
+    for<'a> T::I2c<'a>: UsesI2C,
+    <T as Transformer>::AddressMode: EHalI2cAddressMode,
 {
     type Error = embedded_hal::i2c::ErrorKind;
 
