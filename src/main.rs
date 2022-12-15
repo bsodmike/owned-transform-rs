@@ -10,7 +10,7 @@ use embedded_graphics::{
 
 use embedded_hal::i2c::I2c;
 use graphics::{Flushable, OwnedDrawTargetExt};
-use serial::{OwnedTargetExt, UsesI2C};
+use serial::{HandlesI2C, OwnedTargetExt};
 use std::{any, convert::Infallible, error};
 use std::{fmt::Debug, marker::PhantomData};
 
@@ -191,21 +191,21 @@ fn main() -> Result<()> {
 
     log::info!("Starting.");
 
-    // UsesI2C
+    // HandlesI2C
     let i2c1 = DummyI2c::new();
-    let mut device = ExampleDevice { iface: i2c1 };
+    let device = ExampleDevice { iface: i2c1 };
     let device = get_device(device)?;
 
     let mut wrapped = device
         //
-        .owned_yank(|target| {
+        .owned_handler(|target| {
             //
             log::info!("This is the closure");
 
             Ok(())
         });
 
-    wrapped.run_flusher().unwrap();
+    wrapped.handle().unwrap();
 
     // Graphics
     let spi1 = DummySpi::new();

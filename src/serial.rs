@@ -1,5 +1,11 @@
 use embedded_hal::i2c::{AddressMode as EHalI2cAddressMode, ErrorKind, ErrorType, I2c};
-use embedded_hal_0_2::blocking::i2c::{AddressMode, SevenBitAddress, Write, WriteRead};
+use embedded_hal_0_2::blocking::i2c::{AddressMode, SevenBitAddress};
+
+/*
+    Flushing<'a, T, F>:     Handler<'a, T, F>
+    FlushingT<T, F>:        HandlerT<T, F>
+    Flushable               HandlesI2C
+*/
 
 pub trait Transformer {
     type AddressMode: AddressMode;
@@ -29,9 +35,9 @@ pub trait Transformer {
     }
 }
 
-pub struct I2cT<T, F>(T, F);
+pub struct HandlerT<T, F>(T, F);
 
-impl<T, F> Transformer for I2cT<T, F>
+impl<T, F> Transformer for HandlerT<T, F>
 where
     T: I2c + 'static,
     F: FnMut(&mut T) -> Result<(), T::Error> + Send + Clone + 'static,
@@ -39,10 +45,10 @@ where
     type AddressMode = SevenBitAddress;
     type Error = T::Error;
 
-    type I2c<'a> = I2cRunning<'a, T, F> where Self: 'a;
+    type I2c<'a> = Handler<'a, T, F> where Self: 'a;
 
     fn transform<'a>(&'a mut self) -> Self::I2c<'a> {
-        self.0.yank(self.1.clone())
+        self.0.handler(self.1.clone())
     }
 }
 
@@ -113,18 +119,18 @@ where
     }
 }
 
-impl<T> UsesI2C for Owned<T>
+impl<T> HandlesI2C for Owned<T>
 where
     T: Transformer,
     // NOTE this ensures the transformer is able to call the correct method.
-    for<'a> T::I2c<'a>: UsesI2C,
+    for<'a> T::I2c<'a>: HandlesI2C,
     <T as Transformer>::AddressMode: EHalI2cAddressMode,
 {
     type Error = embedded_hal::i2c::ErrorKind;
 
-    fn run_flusher(&mut self) -> Result<(), <Self as UsesI2C>::Error> {
-        log::info!("impl UsesI2C for Owned<T>");
-        self.0.transform().run_flusher();
+    fn handle(&mut self) -> Result<(), <Self as HandlesI2C>::Error> {
+        log::info!("impl HandlesI2C for Owned<T>");
+        self.0.transform().handle();
 
         Ok(())
     }
@@ -138,27 +144,27 @@ where
 }
 
 //
-// UsesI2C
+// HandlesI2C
 //
 
-pub trait UsesI2C: I2c {
+pub trait HandlesI2C: I2c {
     type Error;
 
-    fn run_flusher(&mut self) -> Result<(), <Self as UsesI2C>::Error>;
+    fn handle(&mut self) -> Result<(), <Self as HandlesI2C>::Error>;
 }
 
-pub struct I2cRunning<'a, T, F> {
+pub struct Handler<'a, T, F> {
     parent: &'a mut T,
-    flusher: F,
+    handler: F,
 }
 
-impl<'a, T, F> I2cRunning<'a, T, F> {
-    pub fn new(parent: &'a mut T, flusher: F) -> Self {
-        Self { parent, flusher }
+impl<'a, T, F> Handler<'a, T, F> {
+    pub fn new(parent: &'a mut T, handler: F) -> Self {
+        Self { parent, handler }
     }
 }
 
-impl<'a, T> I2cRunning<'a, T, fn(&mut T) -> Result<(), T::Error>>
+impl<'a, T> Handler<'a, T, fn(&mut T) -> Result<(), T::Error>>
 where
     T: I2c,
 {
@@ -167,28 +173,28 @@ where
     }
 }
 
-impl<'a, T, F> ErrorType for I2cRunning<'a, T, F> {
+impl<'a, T, F> ErrorType for Handler<'a, T, F> {
     type Error = ErrorKind;
 }
 
-impl<'a, T, F> UsesI2C for I2cRunning<'a, T, F>
+impl<'a, T, F> HandlesI2C for Handler<'a, T, F>
 where
     T: I2c,
     F: FnMut(&mut T) -> Result<(), T::Error>,
 {
     type Error = <T as embedded_hal::i2c::ErrorType>::Error;
 
-    fn run_flusher(&mut self) -> Result<(), <Self as UsesI2C>::Error> {
+    fn handle(&mut self) -> Result<(), <Self as HandlesI2C>::Error> {
         let Self {
             parent: target,
-            flusher,
+            handler,
         } = self;
 
-        (flusher)(target)
+        (handler)(target)
     }
 }
 
-impl<'a, T, F> I2c for I2cRunning<'a, T, F>
+impl<'a, T, F> I2c for Handler<'a, T, F>
 where
     T: I2c,
 {
@@ -249,31 +255,31 @@ where
 //
 
 pub trait TargetExt2: I2c + Sized {
-    fn yank<F: FnMut(&mut Self) -> Result<(), Self::Error>>(
+    fn handler<F: FnMut(&mut Self) -> Result<(), Self::Error>>(
         &mut self,
-        flusher: F,
-    ) -> I2cRunning<'_, Self, F>;
+        handler: F,
+    ) -> Handler<'_, Self, F>;
 }
 
 impl<T> TargetExt2 for T
 where
     T: I2c,
 {
-    fn yank<F: FnMut(&mut Self) -> Result<(), Self::Error>>(
+    fn handler<F: FnMut(&mut Self) -> Result<(), Self::Error>>(
         &mut self,
-        flusher: F,
-    ) -> I2cRunning<'_, Self, F> {
-        log::info!("inside yank");
+        handler: F,
+    ) -> Handler<'_, Self, F> {
+        log::info!("inside handler");
 
-        I2cRunning::new(self, flusher)
+        Handler::new(self, handler)
     }
 }
 
 pub trait OwnedTargetExt: I2c + Sized {
-    fn owned_yank<F: FnMut(&mut Self) -> Result<(), Self::Error> + Send + Clone + 'static>(
+    fn owned_handler<F: FnMut(&mut Self) -> Result<(), Self::Error> + Send + Clone + 'static>(
         self,
-        flusher: F,
-    ) -> Owned<I2cT<Self, F>>
+        handler: F,
+    ) -> Owned<HandlerT<Self, F>>
     where
         Self: 'static,
         Self::Error: 'static;
@@ -283,14 +289,14 @@ impl<T> OwnedTargetExt for T
 where
     T: I2c,
 {
-    fn owned_yank<F: FnMut(&mut Self) -> Result<(), Self::Error> + Send + Clone + 'static>(
+    fn owned_handler<F: FnMut(&mut Self) -> Result<(), Self::Error> + Send + Clone + 'static>(
         self,
-        flusher: F,
-    ) -> Owned<I2cT<Self, F>>
+        handler: F,
+    ) -> Owned<HandlerT<Self, F>>
     where
         Self: 'static,
         Self::Error: 'static,
     {
-        I2cT(self, flusher).into_owned()
+        HandlerT(self, handler).into_owned()
     }
 }
