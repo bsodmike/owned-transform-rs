@@ -1,17 +1,21 @@
-#![forbid(unused_imports)]
+// #![forbid(unused_imports)]
 
-use crate::graphics::OwnedDrawTargetExt;
 use core::convert::TryInto;
 use embedded_graphics::{
+    draw_target::DrawTarget,
     pixelcolor::{Gray8, GrayColor},
     prelude::*,
     primitives::{Circle, PrimitiveStyle},
 };
-use graphics::Flushable;
-use std::fmt::Debug;
-use std::{convert::Infallible, error};
+
+use embedded_hal::i2c::I2c;
+use graphics::{Flushable, OwnedDrawTargetExt};
+use serial::{HandlesI2C, OwnedTargetExt};
+use std::{any, convert::Infallible, error};
+use std::{fmt::Debug, marker::PhantomData};
 
 pub mod graphics;
+pub mod serial;
 
 type Result<T> = std::result::Result<T, Box<dyn error::Error>>;
 
@@ -88,23 +92,122 @@ impl SpiWrite for DummySpi {
     fn send_bytes(&self, _buffer: &[u8]) {}
 }
 
-impl<SPI> Flushable for ExampleDisplay<SPI> {
-    fn flush(&mut self) -> std::result::Result<(), Self::Error> {
-        Ok(()) // do we really care about this?
-    }
-}
-
 pub fn get_display<D>(
     display: D,
-) -> Result<impl Flushable<Color = Gray8, Error = impl Debug + 'static> + 'static>
+) -> Result<impl DrawTarget<Color = Gray8, Error = impl Debug + 'static> + 'static>
 where
-    D: graphics::Flushable + embedded_graphics::draw_target::DrawTarget<Color = Gray8> + 'static,
-    <D as embedded_graphics::draw_target::DrawTarget>::Error: Debug,
+    D: DrawTarget<Color = Gray8> + 'static,
+    <D as DrawTarget>::Error: Debug,
 {
     Ok(display)
 }
 
+/// I2C communication error
+#[derive(Debug)]
+struct I2cCommError;
+
+struct DummyI2c {}
+
+impl DummyI2c {
+    fn new() -> Self {
+        Self {}
+    }
+}
+
+struct ExampleDevice<I2C> {
+    iface: I2C,
+}
+
+impl<I2C> I2c for ExampleDevice<I2C> {
+    fn read(&mut self, address: u8, buffer: &mut [u8]) -> std::result::Result<(), Self::Error> {
+        todo!()
+    }
+
+    fn write(&mut self, address: u8, bytes: &[u8]) -> std::result::Result<(), Self::Error> {
+        todo!()
+    }
+
+    fn write_iter<B>(&mut self, address: u8, bytes: B) -> std::result::Result<(), Self::Error>
+    where
+        B: IntoIterator<Item = u8>,
+    {
+        todo!()
+    }
+
+    fn write_read(
+        &mut self,
+        address: u8,
+        bytes: &[u8],
+        buffer: &mut [u8],
+    ) -> std::result::Result<(), Self::Error> {
+        todo!()
+    }
+
+    fn write_iter_read<B>(
+        &mut self,
+        address: u8,
+        bytes: B,
+        buffer: &mut [u8],
+    ) -> std::result::Result<(), Self::Error>
+    where
+        B: IntoIterator<Item = u8>,
+    {
+        todo!()
+    }
+
+    fn transaction<'a>(
+        &mut self,
+        address: u8,
+        operations: &mut [embedded_hal::i2c::Operation<'a>],
+    ) -> std::result::Result<(), Self::Error> {
+        todo!()
+    }
+
+    fn transaction_iter<'a, O>(
+        &mut self,
+        address: u8,
+        operations: O,
+    ) -> std::result::Result<(), Self::Error>
+    where
+        O: IntoIterator<Item = embedded_hal::i2c::Operation<'a>>,
+    {
+        todo!()
+    }
+}
+
+impl<I2C> embedded_hal::i2c::ErrorType for ExampleDevice<I2C> {
+    type Error = embedded_hal::i2c::ErrorKind;
+}
+
+pub fn get_device<D>(device: D) -> Result<impl I2c + 'static>
+where
+    D: I2c + 'static,
+{
+    Ok(device)
+}
+
 fn main() -> Result<()> {
+    env_logger::init();
+
+    log::info!("Starting.");
+
+    // HandlesI2C
+    let i2c1 = DummyI2c::new();
+    let device = ExampleDevice { iface: i2c1 };
+    let device = get_device(device)?;
+
+    let mut wrapped = device
+        //
+        .owned_handler(|target| {
+            //
+            log::info!("This is the closure");
+
+            Ok(())
+        });
+
+    wrapped.handle().unwrap();
+
+    // Graphics
     let spi1 = DummySpi::new();
     let mut display = ExampleDisplay {
         framebuffer: [0; 4096],
