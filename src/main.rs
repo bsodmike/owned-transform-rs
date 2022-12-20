@@ -11,6 +11,7 @@ use embedded_graphics::{
 use embedded_hal::i2c::I2c;
 use graphics::{Flushable, OwnedDrawTargetExt};
 use serial::{HandlesI2C, OwnedTargetExt};
+use std::fmt;
 use std::{any, convert::Infallible, error};
 use std::{fmt::Debug, marker::PhantomData};
 
@@ -102,9 +103,48 @@ where
     Ok(display)
 }
 
+// I2C
+
+pub type BoxError = Box<dyn std::error::Error + Send + Sync>;
+
 /// I2C communication error
 #[derive(Debug)]
-struct I2cCommError;
+pub struct I2cCommError {
+    inner: BoxError,
+}
+
+impl I2cCommError {
+    /// Create a new `Error` from a boxable error.
+    pub fn new(error: impl Into<BoxError>) -> Self {
+        Self {
+            inner: error.into(),
+        }
+    }
+
+    #[allow(dead_code)]
+    /// Convert an `Error` back into the underlying boxed trait object.
+    pub fn into_inner(self) -> BoxError {
+        self.inner
+    }
+}
+
+impl fmt::Display for I2cCommError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.inner, f)
+    }
+}
+
+impl std::error::Error for I2cCommError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&*self.inner)
+    }
+}
+
+impl embedded_hal::i2c::Error for I2cCommError {
+    fn kind(&self) -> embedded_hal::i2c::ErrorKind {
+        embedded_hal::i2c::ErrorKind::Other
+    }
+}
 
 struct DummyI2c {}
 
@@ -176,7 +216,7 @@ impl<I2C> I2c for ExampleDevice<I2C> {
 }
 
 impl<I2C> embedded_hal::i2c::ErrorType for ExampleDevice<I2C> {
-    type Error = embedded_hal::i2c::ErrorKind;
+    type Error = I2cCommError;
 }
 
 pub fn get_device<D>(device: D) -> Result<impl I2c + 'static>

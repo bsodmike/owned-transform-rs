@@ -1,5 +1,7 @@
-use embedded_hal::i2c::{AddressMode as EHalI2cAddressMode, ErrorKind, ErrorType, I2c};
+use embedded_hal::i2c::{AddressMode as EHalI2cAddressMode, ErrorType, I2c};
 use embedded_hal_0_2::blocking::i2c::{AddressMode, SevenBitAddress};
+
+use crate::I2cCommError;
 
 /*
     Flushing<'a, T, F>:     Handler<'a, T, F>
@@ -35,11 +37,13 @@ pub trait Transformer {
     }
 }
 
-pub struct HandlerT<T, F>(T, F);
+pub struct HandlerT<T, F>(T, F)
+where
+    T: embedded_hal::i2c::ErrorType<Error = I2cCommError>;
 
 impl<T, F> Transformer for HandlerT<T, F>
 where
-    T: I2c + 'static,
+    T: I2c + embedded_hal::i2c::ErrorType<Error = I2cCommError> + 'static,
     F: FnMut(&mut T) -> Result<(), T::Error> + Send + Clone + 'static,
 {
     type AddressMode = SevenBitAddress;
@@ -126,7 +130,7 @@ where
     for<'a> T::I2c<'a>: HandlesI2C,
     <T as Transformer>::AddressMode: EHalI2cAddressMode,
 {
-    type Error = embedded_hal::i2c::ErrorKind;
+    type Error = I2cCommError;
 
     fn handle(&mut self) -> Result<(), <Self as HandlesI2C>::Error> {
         log::info!("impl HandlesI2C for Owned<T>");
@@ -140,7 +144,7 @@ impl<T> ErrorType for Owned<T>
 where
     T: Transformer,
 {
-    type Error = ErrorKind;
+    type Error = I2cCommError;
 }
 
 //
@@ -174,15 +178,15 @@ where
 }
 
 impl<'a, T, F> ErrorType for Handler<'a, T, F> {
-    type Error = ErrorKind;
+    type Error = I2cCommError;
 }
 
 impl<'a, T, F> HandlesI2C for Handler<'a, T, F>
 where
-    T: I2c,
+    T: I2c + embedded_hal::i2c::ErrorType<Error = I2cCommError>,
     F: FnMut(&mut T) -> Result<(), T::Error>,
 {
-    type Error = <T as embedded_hal::i2c::ErrorType>::Error;
+    type Error = I2cCommError;
 
     fn handle(&mut self) -> Result<(), <Self as HandlesI2C>::Error> {
         let Self {
@@ -196,10 +200,16 @@ where
 
 impl<'a, T, F> I2c for Handler<'a, T, F>
 where
-    T: I2c,
+    T: I2c<Error = I2cCommError>,
 {
     fn read(&mut self, address: u8, buffer: &mut [u8]) -> Result<(), Self::Error> {
-        todo!()
+        if let Err(error) = self.parent.read(address, buffer) {
+            match error {
+                _ => Err(error),
+            }
+        } else {
+            Ok(())
+        }
     }
 
     fn write(&mut self, address: u8, bytes: &[u8]) -> Result<(), Self::Error> {
@@ -275,7 +285,7 @@ where
     }
 }
 
-pub trait OwnedTargetExt: I2c + Sized {
+pub trait OwnedTargetExt: I2c<Error = I2cCommError> + Sized {
     fn owned_handler<F: FnMut(&mut Self) -> Result<(), Self::Error> + Send + Clone + 'static>(
         self,
         handler: F,
@@ -287,7 +297,7 @@ pub trait OwnedTargetExt: I2c + Sized {
 
 impl<T> OwnedTargetExt for T
 where
-    T: I2c,
+    T: I2c + embedded_hal::i2c::ErrorType<Error = I2cCommError>,
 {
     fn owned_handler<F: FnMut(&mut Self) -> Result<(), Self::Error> + Send + Clone + 'static>(
         self,
