@@ -37,13 +37,11 @@ pub trait Transformer {
     }
 }
 
-pub struct HandlerT<T, F>(T, F)
-where
-    T: embedded_hal::i2c::ErrorType<Error = I2cCommError>;
+pub struct HandlerT<T, F>(T, F);
 
 impl<T, F> Transformer for HandlerT<T, F>
 where
-    T: I2c + embedded_hal::i2c::ErrorType<Error = I2cCommError> + 'static,
+    T: I2c + 'static,
     F: FnMut(&mut T) -> Result<(), T::Error> + Send + Clone + 'static,
 {
     type AddressMode = SevenBitAddress;
@@ -130,9 +128,7 @@ where
     for<'a> T::I2c<'a>: HandlesI2C,
     <T as Transformer>::AddressMode: EHalI2cAddressMode,
 {
-    type Error = I2cCommError;
-
-    fn handle(&mut self) -> Result<(), <Self as HandlesI2C>::Error> {
+    fn handle(&mut self) -> Result<(), Self::Error> {
         log::info!("impl HandlesI2C for Owned<T>");
         self.0.transform().handle();
 
@@ -152,9 +148,7 @@ where
 //
 
 pub trait HandlesI2C: I2c {
-    type Error;
-
-    fn handle(&mut self) -> Result<(), <Self as HandlesI2C>::Error>;
+    fn handle(&mut self) -> Result<(), Self::Error>;
 }
 
 pub struct Handler<'a, T, F> {
@@ -183,12 +177,10 @@ impl<'a, T, F> ErrorType for Handler<'a, T, F> {
 
 impl<'a, T, F> HandlesI2C for Handler<'a, T, F>
 where
-    T: I2c + embedded_hal::i2c::ErrorType<Error = I2cCommError>,
+    T: I2c,
     F: FnMut(&mut T) -> Result<(), T::Error>,
 {
-    type Error = I2cCommError;
-
-    fn handle(&mut self) -> Result<(), <Self as HandlesI2C>::Error> {
+    fn handle(&mut self) -> Result<(), Self::Error> {
         let Self {
             parent: target,
             handler,
@@ -200,7 +192,7 @@ where
 
 impl<'a, T, F> I2c for Handler<'a, T, F>
 where
-    T: I2c<Error = I2cCommError>,
+    T: I2c,
 {
     fn read(&mut self, address: u8, buffer: &mut [u8]) -> Result<(), Self::Error> {
         if let Err(error) = self.parent.read(address, buffer) {
@@ -285,7 +277,7 @@ where
     }
 }
 
-pub trait OwnedTargetExt: I2c<Error = I2cCommError> + Sized {
+pub trait OwnedTargetExt: I2c + Sized {
     fn owned_handler<F: FnMut(&mut Self) -> Result<(), Self::Error> + Send + Clone + 'static>(
         self,
         handler: F,
@@ -297,7 +289,7 @@ pub trait OwnedTargetExt: I2c<Error = I2cCommError> + Sized {
 
 impl<T> OwnedTargetExt for T
 where
-    T: I2c + embedded_hal::i2c::ErrorType<Error = I2cCommError>,
+    T: I2c,
 {
     fn owned_handler<F: FnMut(&mut Self) -> Result<(), Self::Error> + Send + Clone + 'static>(
         self,
