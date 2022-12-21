@@ -206,14 +206,13 @@ where
     T: I2c<Error = I2cCommError>,
 {
     fn read(&mut self, address: u8, buffer: &mut [u8]) -> Result<(), Self::Error> {
-        // if let Err(error) = self.parent.read(address, buffer) {
-        //     match error {
-        //         _ => Err(error),
-        //     }
-        // } else {
-        //     Ok(())
-        // }
-        Ok(())
+        if let Err(error) = self.parent.read(address, buffer) {
+            match error {
+                _ => Err(error),
+            }
+        } else {
+            Ok(())
+        }
     }
 
     fn write(&mut self, address: u8, bytes: &[u8]) -> Result<(), Self::Error> {

@@ -219,9 +219,9 @@ impl<I2C> embedded_hal::i2c::ErrorType for ExampleDevice<I2C> {
     type Error = I2cCommError;
 }
 
-pub fn get_device<D>(device: D) -> Result<impl I2c + 'static>
+pub fn get_device<E, D>(device: D) -> Result<impl I2c<Error = E> + 'static>
 where
-    D: I2c + 'static,
+    D: I2c<Error = E> + 'static,
 {
     Ok(device)
 }
