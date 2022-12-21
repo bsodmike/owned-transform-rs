@@ -219,12 +219,7 @@ impl<I2C> embedded_hal::i2c::ErrorType for ExampleDevice<I2C> {
     type Error = I2cCommError;
 }
 
-pub fn get_device<E, D>(device: D) -> Result<impl I2c<Error = E> + 'static>
-where
-    D: I2c<Error = E> + 'static,
-{
-    Ok(device)
-}
+pub fn assert_i2c(_device: &impl I2c) {}
 
 fn main() -> Result<()> {
     env_logger::init();
@@ -234,11 +229,11 @@ fn main() -> Result<()> {
     // HandlesI2C
     let i2c1 = DummyI2c::new();
     let device = ExampleDevice { iface: i2c1 };
-    let device = get_device(device)?;
+    assert_i2c(&device);
 
     let mut wrapped = device
         //
-        .owned_handler(|target| {
+        .owned_handler(|_target| {
             //
             log::info!("This is the closure");
 
