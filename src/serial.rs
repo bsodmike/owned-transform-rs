@@ -70,10 +70,15 @@ where
 
 impl<T> I2c for Owned<T>
 where
-    T: Transformer,
+    T: Transformer<AddressMode = SevenBitAddress>,
 {
-    fn read(&mut self, address: u8, buffer: &mut [u8]) -> Result<(), Self::Error> {
-        todo!()
+    fn read(&mut self, address: u8, buffer: &mut [u8]) -> Result<(), Self::Error>
+    where
+        <T as Transformer>::AddressMode: EHalI2cAddressMode,
+    {
+        self.0.transform().read(address, buffer);
+
+        Ok(())
     }
 
     fn write(&mut self, address: u8, bytes: &[u8]) -> Result<(), Self::Error> {
@@ -126,18 +131,16 @@ where
 
 impl<T> HandlesI2C for Owned<T>
 where
-    T: Transformer,
+    T: Transformer<AddressMode = SevenBitAddress>,
     // NOTE this ensures the transformer is able to call the correct method.
-    for<'a> T::I2c<'a>: HandlesI2C,
+    for<'a> T::I2c<'a>: HandlesI2C<Error = I2cCommError>,
     <T as Transformer>::AddressMode: EHalI2cAddressMode,
 {
     type Error = I2cCommError;
 
     fn handle(&mut self) -> Result<(), <Self as HandlesI2C>::Error> {
         log::info!("impl HandlesI2C for Owned<T>");
-        self.0.transform().handle();
-
-        Ok(())
+        self.0.transform().handle()
     }
 }
 
@@ -206,24 +209,18 @@ where
     T: I2c<Error = I2cCommError>,
 {
     fn read(&mut self, address: u8, buffer: &mut [u8]) -> Result<(), Self::Error> {
-        if let Err(error) = self.parent.read(address, buffer) {
-            match error {
-                _ => Err(error),
-            }
-        } else {
-            Ok(())
-        }
+        self.parent.read(address, buffer)
     }
 
     fn write(&mut self, address: u8, bytes: &[u8]) -> Result<(), Self::Error> {
-        todo!()
+        self.parent.write(address, bytes)
     }
 
     fn write_iter<B>(&mut self, address: u8, bytes: B) -> Result<(), Self::Error>
     where
         B: IntoIterator<Item = u8>,
     {
-        todo!()
+        self.parent.write_iter(address, bytes)
     }
 
     fn write_read(
@@ -232,7 +229,7 @@ where
         bytes: &[u8],
         buffer: &mut [u8],
     ) -> Result<(), Self::Error> {
-        todo!()
+        self.parent.write_read(address, bytes, buffer)
     }
 
     fn write_iter_read<B>(
@@ -244,7 +241,7 @@ where
     where
         B: IntoIterator<Item = u8>,
     {
-        todo!()
+        self.parent.write_iter_read(address, bytes, buffer)
     }
 
     fn transaction<'b>(
@@ -252,14 +249,14 @@ where
         address: u8,
         operations: &mut [embedded_hal::i2c::Operation<'b>],
     ) -> Result<(), Self::Error> {
-        todo!()
+        self.parent.transaction(address, operations)
     }
 
     fn transaction_iter<'b, O>(&mut self, address: u8, operations: O) -> Result<(), Self::Error>
     where
         O: IntoIterator<Item = embedded_hal::i2c::Operation<'b>>,
     {
-        todo!()
+        self.parent.transaction_iter(address, operations)
     }
 }
 
